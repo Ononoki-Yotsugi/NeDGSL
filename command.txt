@@ -1,0 +1,35 @@
+cd /home/zzy/UnifiedGSL
+conda activate gsl
+cd /d E:\work\NeDGSL
+conda activate pyg
+
+python main.py --data cora --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data citeseer --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data pubmed --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data ogbn-arxiv --solver gcndense --config configs/gcn/gcndense_ogb.yaml --gpu 0
+python main.py --data wikics --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data amazoncom --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data amazonpho --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data coauthorcs --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data coauthorph --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0
+python main.py --data chameleon --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0 --data_load pyg
+python main.py --data squirrel --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0 --data_load pyg
+python main.py --data actor --solver gcndense --config configs/gcn/gcndense_template.yaml --gpu 0 --data_load pyg
+
+python main.py --data cora --solver gat --config configs/gat/gat_small.yaml --gpu 0
+python main.py --data pubmed --solver gat --config configs/gat/gat_pubmed.yaml --gpu 0
+python main.py --data ogbn-arxiv --solver gat --config configs/gat/gat_big.yaml --gpu 0
+python main.py --data wikics --solver gat --config configs/gat/gat_big.yaml --gpu 0
+
+python main.py --data cora --solver prognn --config configs/prognn/prognn_cora.yaml --gpu 0
+
+python main.py --data cora --solver idgl --config configs/idgl/idgl_cora.yaml --gpu 0
+python main.py --data citeseer --solver idgl --config configs/idgl/idgl_citeseer.yaml --gpu 0
+python main.py --data pubmed --solver idgl --config configs/idgl/idgl_pubmed.yaml --gpu 0
+python main.py --data ogbn-arxiv --solver idgl --config configs/idgl/idgl_arxiv.yaml --gpu 0
+
+python main.py --data cora --solver grcn --config configs/grcn/grcn_cora.yaml --gpu 0
+
+
+
+python main.py --data cora --solver nedgsl-p --config configs/nedgsl-p/cora.yaml --gpu 0
