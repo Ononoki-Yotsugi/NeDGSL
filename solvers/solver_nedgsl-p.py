@@ -15,6 +15,14 @@ class Solver(BaseSolver):
         print("Solver Version : [{}]".format("prognn"))
         self.adj = self.adj.to_dense()
 
+    def compute_ccns(self, A, Y):
+        c = Y.sum(0).unsqueeze(0)
+        B = A @ Y
+        B = torch.nn.functional.normalize(B, dim=1)
+        H = B @ B.T
+        ccns = Y.T @ H @ Y
+        ccns = ccns.div(c.T @ c)
+        return ccns
 
     def train_gcn(self, epoch):
         normalized_adj = self.estimator.normalize()
@@ -67,12 +75,20 @@ class Solver(BaseSolver):
             loss_smooth_feat = 0 * loss_l1
 
         output = self.model(self.feats, normalized_adj)[-1]
+        Y = F.softmax(output, dim=1)
+        Y = Y.clone().detach()
+        # print(Y)
+        # print(estimator.estimated_adj)
+        ccns = self.compute_ccns(estimator.estimated_adj, Y)
+        # print(ccns)
+        # print(5*ccns.trace()-ccns.sum())
         loss_gcn = F.cross_entropy(output[self.train_mask], self.labels[self.train_mask])
+        loss_ccns = 5*ccns.trace()-ccns.sum()
         acc_train = accuracy(output[self.train_mask], self.labels[self.train_mask])
 
         #loss_symmetric = torch.norm(estimator.estimated_adj - estimator.estimated_adj.t(), p="fro")
         #loss_differential =  loss_fro + self.conf.gamma * loss_gcn + self.conf.lambda_ * loss_smooth_feat + args.phi * loss_symmetric
-        loss_differential = loss_fro + self.conf.gamma * loss_gcn + self.conf.lambda_ * loss_smooth_feat
+        loss_differential = loss_fro + self.conf.gamma * loss_gcn + self.conf.lambda_ * loss_smooth_feat + self.conf.eta * loss_ccns
         loss_differential.backward()
         self.optimizer_adj.step()
         # we finish the optimization of the differential part above, next we need to do the optimization of loss_l1 and loss_nuclear
@@ -83,14 +99,16 @@ class Solver(BaseSolver):
             self.optimizer_nuclear.step()
             loss_nuclear = prox_operators.nuclear_norm
 
-        self.optimizer_l1.zero_grad()
-        self.optimizer_l1.step()
+        # self.optimizer_l1.zero_grad()
+        # self.optimizer_l1.step()
 
         total_loss = loss_fro \
                      + self.conf.gamma * loss_gcn \
-                     + self.conf.alpha * loss_l1 \
-                     + self.conf.beta * loss_nuclear
-                     #+ self.conf.phi * loss_symmetric
+                     + self.conf.eta * loss_ccns
+                     # + self.conf.beta * loss_nuclear
+                     # + self.conf.alpha * loss_l1 \
+                     # + self.conf.phi * loss_symmetric\
+
 
         estimator.estimated_adj.data.copy_(torch.clamp(estimator.estimated_adj.data, min=0, max=1))
 

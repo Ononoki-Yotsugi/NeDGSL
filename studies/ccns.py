@@ -2,7 +2,7 @@ from data.pyg_load import pyg_load_dataset
 import torch
 import numpy as np
 
-ds_name = 'cora'
+ds_name = 'texas'
 verbose = True
 device = torch.device('cuda')
 
@@ -57,10 +57,19 @@ def normalized_euclidean(mat, adj, mat_cal=True):
             return distances.cpu().numpy()
 
 
-def cosine(mat, adj, mat_cal=True):
+def cosine(mat, mat_cal=True):
     if mat_cal:
         norm_mat = torch.nn.functional.normalize(mat, dim=1)
         return norm_mat@norm_mat.T
+
+def compute_ccns(A, Y):
+    c = Y.sum(0).unsqueeze(0)
+    B = A @ Y
+    B = torch.nn.functional.normalize(B, dim=1)
+    H = B @ B.T
+    ccns = Y.T @ H @ Y
+    ccns = ccns.div(c.T @ c)
+    return ccns
 
 
 dataset_raw = pyg_load_dataset(ds_name, '../data/')
@@ -73,6 +82,10 @@ n_classes = dataset_raw.num_classes
 edges = g.edge_index
 adj = torch.sparse.FloatTensor(edges, torch.ones(edges.shape[1]), [n_nodes, n_nodes]).coalesce().to(device)
 n_edges = g.num_edges
+adj = adj.to_dense()   # not very large
+adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+adj.fill_diagonal_(0)
+adj = adj.to_sparse()
 if verbose:
     print("""----Data statistics------'
                 #Nodes %d
@@ -80,7 +93,15 @@ if verbose:
                 #Classes %d""" %
           (n_nodes, n_edges, n_classes))
 
-
+Y = torch.zeros(n_nodes, n_classes).to(device)
+for i in range(n_nodes):
+    Y[i,labels[i]]=1
+c = Y.sum(0).unsqueeze(0)
+A = adj.to_dense()
+ccns = Y.T@cosine(A@Y)@Y
+ccns = ccns.div(c.T@c)
+print(ccns)
+print(compute_ccns(adj, Y))
 
 '''
 dic = {}
