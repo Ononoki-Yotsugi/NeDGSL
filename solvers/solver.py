@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 from data import load_dataset
 from data.pyg_load import pyg_load_dataset
+from data.hetero_load import hetero_load
 import dgl
 from data.split import get_split
 from dgl.data.utils import generate_mask_tensor
@@ -33,6 +34,7 @@ class BaseSolver(nn.Module):
             self.adj = torch.sparse.FloatTensor(self.g.edge_index, torch.ones(self.g.edge_index.shape[1]),
                                                 [self.n_nodes, self.n_nodes])
             self.n_edges = self.g.num_edges
+            self.n_classes = self.data_raw.num_classes
             if not ('data_cpu' in self.conf and self.conf.data_cpu):
                 self.feats = self.feats.to(self.device)
                 self.labels = self.labels.to(self.device)
@@ -49,6 +51,22 @@ class BaseSolver(nn.Module):
                 else:
                     self.feats = normalize_feats(self.feats)
 
+        elif mode == 'hetero':
+            self.g = hetero_load(ds_name)
+            self.adj = self.g.adj()
+            if not ('data_cpu' in self.conf and self.conf.data_cpu):
+                self.g = self.g.int().to(self.device)
+                self.adj = self.adj.to(self.device)
+            self.feats = self.g.ndata['feat']  # 这个feats已经经过归一化了
+            self.n_nodes = self.feats.shape[0]
+            self.dim_feats = self.feats.shape[1]
+            self.labels = self.g.ndata['label']
+            self.n_edges = self.g.number_of_edges()
+            if 'not_norm_feats' in self.conf and self.conf.not_norm_feats:
+                pass
+            else:
+                self.feats = normalize_feats(self.feats)
+            self.n_classes = len(self.labels.unique())
 
         else:
             self.data_raw, g = load_dataset(ds_name)
@@ -62,7 +80,8 @@ class BaseSolver(nn.Module):
             self.dim_feats = self.feats.shape[1]
             self.labels = self.g.ndata['label']
             self.n_edges = self.g.number_of_edges()
-        self.n_classes = self.data_raw.num_classes
+            self.n_classes = self.data_raw.num_classes
+
         if self.args.verbose:
             print("""----Data statistics------'
                 #Nodes %d
@@ -117,6 +136,11 @@ class BaseSolver(nn.Module):
             self.train_mask = self.g.train_mask[:,seed]
             self.val_mask = self.g.val_mask[:, seed]
             self.test_mask = self.g.test_mask[:, seed]
+        elif ds_name in ['amazon-ratings', 'questions', 'chameleon-filtered', 'squirrel-filtered', 'minesweeper', 'roman-empire', 'wiki-cooc']:
+            assert seed >= 0 and seed <= 9
+            self.train_mask = self.g.ndata['train_mask'][:, seed]
+            self.val_mask = self.g.ndata['val_mask'][:, seed]
+            self.test_mask = self.g.ndata['test_mask'][:, seed]
         else:
             print('dataset not implemented')
             exit(0)
