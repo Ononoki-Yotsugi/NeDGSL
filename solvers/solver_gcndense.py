@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch
 from models.GCN3 import GCN
+from models.enhancedgcn import EnhancedGCN
 from utils.utils import normalize_sp_tensor, accuracy, set_seed, sample_mask
 from copy import deepcopy
 import time
@@ -14,8 +15,12 @@ class Solver(BaseSolver):
         self.normalize = normalize_sp_tensor
 
     def train(self):
-        model = GCN(self.dim_feats, self.conf.n_hidden, self.n_classes, dropout=self.conf.dropout,
-                    input_dropout=self.conf.input_dropout, norm=self.conf.norm).to(self.device)
+        if 'enhancedgcn' in self.conf and self.conf.enhancedgcn:
+            model = EnhancedGCN(self.dim_feats, self.conf.n_hidden, self.n_classes, n_layers=self.conf.n_layers,
+                                dropout=self.conf.dropout, input_dropout=self.conf.input_dropout).to(self.device)
+        else:
+            model = GCN(self.dim_feats, self.conf.n_hidden, self.n_classes, n_layers=self.conf.n_layers,
+                        dropout=self.conf.dropout, input_dropout=self.conf.input_dropout, norm=self.conf.norm).to(self.device)
         optim = torch.optim.Adam(model.parameters(), lr=self.conf.lr, weight_decay=self.conf.weight_decay)
         total_time = 0
         best_val_loss = 10
@@ -32,8 +37,8 @@ class Solver(BaseSolver):
             # forward and backward
             x, output = model(self.feats, normalized_adj)
 
-            loss_train = F.cross_entropy(output[self.train_mask], self.labels[self.train_mask])
-            acc_train = accuracy(output[self.train_mask], self.labels[self.train_mask])
+            loss_train = self.loss_fn(output[self.train_mask], self.labels[self.train_mask])
+            acc_train = self.metric(self.labels[self.train_mask], output[self.train_mask])
             loss_train.backward()
             optim.step()
 
@@ -68,8 +73,8 @@ class Solver(BaseSolver):
             x, output = model(self.feats, normalized_adj)
         logits = output[test_mask]
         labels = self.labels[test_mask]
-        loss = F.cross_entropy(logits, labels)
-        return loss, accuracy(logits, labels), output
+        loss = self.loss_fn(logits, labels)
+        return loss, self.metric(labels, logits), output
 
     def test(self, model, weights):
         model.load_state_dict(weights)

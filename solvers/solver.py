@@ -1,14 +1,16 @@
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 from data import load_dataset
 from data.pyg_load import pyg_load_dataset
 from data.hetero_load import hetero_load
 import dgl
 from data.split import get_split
 from dgl.data.utils import generate_mask_tensor
-from utils.utils import sample_mask, set_seed, normalize_feats
+from utils.utils import sample_mask, set_seed, normalize_feats, accuracy
 import numpy as np
 from utils.logger import Logger
+from sklearn.metrics import roc_auc_score
 
 
 class BaseSolver(nn.Module):
@@ -88,6 +90,13 @@ class BaseSolver(nn.Module):
                 #Edges %d
                 #Classes %d""" %
                   (self.n_nodes, self.n_edges, self.n_classes))
+
+        self.num_targets = self.n_classes
+        if self.num_targets == 2:
+            self.num_targets = 1
+        self.loss_fn = F.binary_cross_entropy_with_logits if self.num_targets == 1 else F.cross_entropy
+        self.metric = roc_auc_score if self.num_targets == 1 else accuracy
+
 
     def split_data(self, ds_name, seed, mode='dgl'):
         if ds_name in ['coauthorcs', 'coauthorph', 'amazoncom', 'amazonpho']:
